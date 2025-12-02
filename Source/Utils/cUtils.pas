@@ -3626,6 +3626,8 @@ var P     : PWideChar;
     Q     : PAnsiChar;
     I, M,
     N, J  : Integer;
+    Ch, Low : Word;
+    UCS4 : Cardinal;
 begin
   if Len = 0 then
     begin
@@ -3642,13 +3644,32 @@ begin
   P := Buf;
   Q := Pointer(Result);
   M := 0;
-  for I := 1 to Len do
+  I := 1;
+  while I <= Len do
     begin
-      UCS4CharToUTF8(UCS4Char(P^), Q, N, J);
+      // Detect surrogate pair
+      if ((Ch >= $D800) and (Ch <= $DBFF) and (I < Len)) then
+      begin
+        Low := Ord((P+1)^);
+
+        if (Low >= $DC00) and (Low <= $DFFF) then
+        begin
+          UCS4 := ((Cardinal(Ch) - $D800) shl 10)
+              + (Cardinal(Low) - $DC00)
+              + $10000;
+          Inc(P); // consume low surrogate
+          Inc(I);
+        end
+        else UCS4 := $FFFD; // replacement char if malformed
+      end
+      else UCS4 := Ch;
+
+      UCS4CharToUTF8(UCS4, Q, N, J);
       Inc(P);
       Inc(Q, J);
       Dec(N, J);
       Inc(M, J);
+      Inc(I);
     end;
   SetLength(Result, M); // actual size
 end;
